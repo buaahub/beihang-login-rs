@@ -92,11 +92,14 @@ fn main() {
         )
         .unwrap();
 
-    let client = ureq::AgentBuilder::new()
+    let mut client = ureq::AgentBuilder::new()
         .cookie_store(cookies)
-        .user_agent(UA)
-        .tls_connector(Arc::new(native_tls::TlsConnector::new().unwrap()))
-        .build();
+        .user_agent(UA);
+    #[cfg(feature = "native-tls")]
+    {
+        client = client.tls_connector(Arc::new(native_tls::TlsConnector::new().unwrap()))
+    }
+    let client = client.build();
     /*
         RESULT=`curl -k -s -c $COOKIEFILE \
     --noproxy '*' \
