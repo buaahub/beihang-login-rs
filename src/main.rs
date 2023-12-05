@@ -94,6 +94,7 @@ fn main() {
 
     let client = ureq::AgentBuilder::new()
         .cookie_store(cookies)
+        .user_agent(UA)
         .tls_connector(Arc::new(native_tls::TlsConnector::new().unwrap()))
         .build();
     /*
