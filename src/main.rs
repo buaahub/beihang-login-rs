@@ -19,13 +19,52 @@ struct UsernamePassword {
 static DEFAULT_ENV_FILE: &str = ".env.json";
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let env_file = args.get(1).map(|x| x.as_str()).unwrap_or(DEFAULT_ENV_FILE);
-    let env_file = std::path::Path::new(env_file);
-    let env_file = std::fs::File::open(env_file).unwrap();
-    let env: UsernamePassword = serde_json::from_reader(env_file).unwrap();
+    let mut opts = getopts::Options::new();
+    opts.optflag("x", "logout", "Log out (default behaviour is log in)");
+    opts.optflag("h", "help", "Print this help menu");
+    opts.optopt(
+        "f",
+        "env-file",
+        "Specify the file containing username and password",
+        "FILE",
+    );
+    let matches = opts.parse(std::env::args()).unwrap();
 
-    let mut cookies = reqwest::cookie::Jar::default();
+    if matches.opt_present("h") {
+        println!(
+            "{}",
+            opts.usage(
+                "Usage: beihang-login [options]\n\
+                \n\
+                You should write your username and password as {\"username\": ..., \"password\": ...}\n\
+                in a JSON file named `.env.json` in the working directory, or supply it with `-f`."
+            )
+        );
+        return;
+    }
+
+    let is_logout = matches.opt_present("x");
+    let env_file = matches
+        .opt_str("f")
+        .unwrap_or_else(|| DEFAULT_ENV_FILE.to_owned());
+
+    let env_file = match std::fs::File::open(&env_file) {
+        Ok(f) => f,
+        Err(err) => {
+            panic!(
+                "Unable to open the env file located at {}: {}",
+                env_file, err
+            )
+        }
+    };
+    let env: UsernamePassword = match serde_json::from_reader(env_file) {
+        Ok(e) => e,
+        Err(err) => {
+            panic!("Unable to parse the env file: {}", err)
+        }
+    };
+
+    let cookies = reqwest::cookie::Jar::default();
     /*
     pgv_pvi=2381688832; AD_VALUE=8751256e; cookie=0; lang=zh-CN; user=$USERNAME */
     let url = "https://gw.buaa.edu.cn/index_1.html"
@@ -151,7 +190,11 @@ fn main() {
     println!("Challenge: {}", challenge);
     println!("Client IP: {}", client_ip);
 
-    login(&client, &env, ac_id, challenge, client_ip, timestamp);
+    if !is_logout {
+        login(&client, &env, ac_id, challenge, client_ip, timestamp);
+    } else {
+        logout(&client, &env, ac_id, client_ip);
+    }
 }
 
 fn login(
@@ -285,6 +328,59 @@ fn login(
         .unwrap();
 
     println!("Response: {:?}", resp.text().unwrap());
+}
+
+fn logout(client: &req::Client, env: &UsernamePassword, ac_id: u32, client_ip: &str) {
+    /*
+       curl -k -b $COOKIEFILE \
+           --noproxy '*' \
+       -H "Host: gw.buaa.edu.cn" \
+       -H "Accept: text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, *//*; q=0.01" \
+       -H "DNT: 1" \
+       -H "X-Requested-With: XMLHttpRequest" \
+       -H "User-Agent: $UA" \
+       -H "Sec-Fetch-Mode: cors" \
+       -H "Sec-Fetch-Site: same-origin" \
+       -H "Referer: https://gw.buaa.edu.cn/srun_portal_pc?ac_id=$AC_ID&theme=buaa&url=www.buaa.edu.cn" \
+       -H "Accept-Language: en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,zh-TW;q=0.6" \
+       "https://gw.buaa.edu.cn/cgi-bin/srun_portal?callback=jQuery112407419864172676014_1566720734115&action=logout&username="$USERNAME"&ac_id=$AC_ID&ip="$CLIENTIP
+    */
+
+    let resp = client
+        .post("https://gw.buaa.edu.cn/cgi-bin/srun_portal")
+        .header("Host", "gw.buaa.edu.cn")
+        .header(
+            "Accept",
+            "text/javascript, application/javascript, application/ecmascript, \
+             application/x-ecmascript, */*; q=0.01",
+        )
+        .header("DNT", "1")
+        .header("X-Requested-With", "XMLHttpRequest")
+        .header("Sec-Fetch-Mode", "cors")
+        .header("Sec-Fetch-Site", "same-origin")
+        .header(
+            "Referer",
+            &format!(
+                "https://gw.buaa.edu.cn/srun_portal_pc?ac_id={}&theme=buaa&url=www.buaa.edu.cn",
+                ac_id
+            ),
+        )
+        .header(
+            "Accept-Language",
+            "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,zh-TW;q=0.6",
+        )
+        .query(&[
+            ("callback", "jQuery112407419864172676014_1566720734115"),
+            ("action", "logout"),
+            ("username", env.username.as_str()),
+            ("ac_id", &ac_id.to_string()),
+            ("ip", client_ip),
+        ])
+        .send()
+        .unwrap()
+        .text()
+        .unwrap();
+    println!("Response: {:?}", resp);
 }
 
 fn s(mut a: &[u8], append_len: bool) -> Vec<u32> {
