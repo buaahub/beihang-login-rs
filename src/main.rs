@@ -16,7 +16,7 @@ struct UsernamePassword {
     username: String,
     password: String,
 }
-static DEFAULT_ENV_FILE: &str = ".env.json";
+static DEFAULT_ENV_FILE: &str = "account.json";
 
 fn main() {
     let mut opts = getopts::Options::new();
