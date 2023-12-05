@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use base64::Engine;
 use bytes::Buf;
+use cookie_store::{Cookie, CookieStore};
 use digest::Digest;
 use hmac::Mac;
-use reqwest::{blocking as req, Url};
+use ureq::{Agent, RequestUrl};
+use url::Url;
 
 static UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
                    AppleWebKit/537.36 (KHTML, like Gecko) \
@@ -64,24 +66,36 @@ fn main() {
         }
     };
 
-    let cookies = reqwest::cookie::Jar::default();
     /*
     pgv_pvi=2381688832; AD_VALUE=8751256e; cookie=0; lang=zh-CN; user=$USERNAME */
     let url = "https://gw.buaa.edu.cn/index_1.html"
         .parse::<Url>()
         .unwrap();
-    cookies.add_cookie_str("pgv_pvi=2381688832", &url);
-    cookies.add_cookie_str("AD_VALUE=8751256e", &url);
-    cookies.add_cookie_str("cookie=0", &url);
-    cookies.add_cookie_str("lang=zh-CN", &url);
-    cookies.add_cookie_str(&format!("user={}", env.username), &url);
 
-    let client = req::Client::builder()
-        .cookie_provider(Arc::new(cookies))
-        .user_agent(UA)
-        .build()
+    let mut cookies = CookieStore::new(None);
+    cookies
+        .insert(Cookie::parse("pgv_pvi=2381688832", &url).unwrap(), &url)
+        .unwrap();
+    cookies
+        .insert(Cookie::parse("AD_VALUE=8751256e", &url).unwrap(), &url)
+        .unwrap();
+    cookies
+        .insert(Cookie::parse("cookie=0", &url).unwrap(), &url)
+        .unwrap();
+    cookies
+        .insert(Cookie::parse("lang=zh-CN", &url).unwrap(), &url)
+        .unwrap();
+    cookies
+        .insert(
+            Cookie::parse(format!("user={}", env.username), &url).unwrap(),
+            &url,
+        )
         .unwrap();
 
+    let client = ureq::AgentBuilder::new()
+        .cookie_store(cookies)
+        .tls_connector(Arc::new(native_tls::TlsConnector::new().unwrap()))
+        .build();
     /*
         RESULT=`curl -k -s -c $COOKIEFILE \
     --noproxy '*' \
@@ -100,25 +114,23 @@ fn main() {
      */
     let _result = client
         .get("https://gw.buaa.edu.cn/index_1.html?ad_check=1")
-        .header("Host", "gw.buaa.edu.cn")
-        .header("Upgrade-Insecure-Requests", "1")
-        .header("Sec-Fetch-Mode", "navigate")
-        .header("Sec-Fetch-User", "?1")
-        .header("DNT", "1")
-        .header(
+        .set("Host", "gw.buaa.edu.cn")
+        .set("Upgrade-Insecure-Requests", "1")
+        .set("Sec-Fetch-Mode", "navigate")
+        .set("Sec-Fetch-User", "?1")
+        .set("DNT", "1")
+        .set(
             "Accept",
             "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,\
              image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
         )
-        .header("Purpose", "prefetch")
-        .header("Sec-Fetch-Site", "none")
-        .header(
+        .set("Purpose", "prefetch")
+        .set("Sec-Fetch-Site", "none")
+        .set(
             "Accept-Language",
             "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,zh-TW;q=0.6",
         )
-        .send()
-        .unwrap()
-        .text()
+        .call()
         .unwrap();
 
     /*
@@ -145,36 +157,34 @@ fn main() {
     let timestamp = chrono::Utc::now().timestamp_millis();
     let result = client
         .get("https://gw.buaa.edu.cn/cgi-bin/get_challenge")
-        .header("Host", "gw.buaa.edu.cn")
-        .header(
+        .set("Host", "gw.buaa.edu.cn")
+        .set(
             "Accept",
             "text/javascript, application/javascript, application/ecmascript, \
              application/x-ecmascript, */*; q=0.01",
         )
-        .header("DNT", "1")
-        .header("X-Requested-With", "XMLHttpRequest")
-        .header("Sec-Fetch-Mode", "cors")
-        .header("Sec-Fetch-Site", "same-origin")
-        .header(
+        .set("DNT", "1")
+        .set("X-Requested-With", "XMLHttpRequest")
+        .set("Sec-Fetch-Mode", "cors")
+        .set("Sec-Fetch-Site", "same-origin")
+        .set(
             "Referer",
             &format!(
                 "https://gw.buaa.edu.cn/srun_portal_pc?ac_id={}&theme=buaa&url=www.buaa.edu.cn",
                 ac_id
             ),
         )
-        .header(
+        .set(
             "Accept-Language",
             "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,zh-TW;q=0.6",
         )
-        .query(&[
+        .query_pairs([
             ("callback", "jQuery112407419864172676014_1566720734115"),
             ("username", env.username.as_str()),
             ("ip", ""),
             ("_", &timestamp.to_string()),
         ])
-        .send()
-        .unwrap()
-        .text()
+        .call()
         .unwrap();
 
     /*
@@ -183,7 +193,7 @@ fn main() {
     CLIENTIP=`echo $RESULT | cut -d '"' -f8`
     echo "Challenge: "$CHALLENGE
     echo "Client IP: "$CLIENTIP */
-
+    let result = result.into_string().unwrap();
     let challenge = result.split('"').nth(3).unwrap();
     let client_ip = result.split('"').nth(7).unwrap();
 
@@ -198,7 +208,7 @@ fn main() {
 }
 
 fn login(
-    client: &req::Client,
+    client: &Agent,
     env: &UsernamePassword,
     ac_id: u32,
     challenge: &str,
@@ -287,28 +297,28 @@ fn login(
 
     let resp = client
         .post("https://gw.buaa.edu.cn/cgi-bin/srun_portal")
-        .header("Host", "gw.buaa.edu.cn")
-        .header(
+        .set("Host", "gw.buaa.edu.cn")
+        .set(
             "Accept",
             "text/javascript, application/javascript, application/ecmascript, \
              application/x-ecmascript, */*; q=0.01",
         )
-        .header("DNT", "1")
-        .header("X-Requested-With", "XMLHttpRequest")
-        .header("Sec-Fetch-Mode", "cors")
-        .header("Sec-Fetch-Site", "same-origin")
-        .header(
+        .set("DNT", "1")
+        .set("X-Requested-With", "XMLHttpRequest")
+        .set("Sec-Fetch-Mode", "cors")
+        .set("Sec-Fetch-Site", "same-origin")
+        .set(
             "Referer",
             &format!(
                 "https://gw.buaa.edu.cn/srun_portal_pc?ac_id={}&theme=buaa&url=www.buaa.edu.cn",
                 ac_id
             ),
         )
-        .header(
+        .set(
             "Accept-Language",
             "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,zh-TW;q=0.6",
         )
-        .query(&[
+        .query_pairs([
             ("callback", "jQuery112407419864172676014_1566720734115"),
             ("action", "login"),
             ("username", env.username.as_str()),
@@ -324,13 +334,13 @@ fn login(
             ("double_stack", "0"),
             ("_", &timestamp.to_string()),
         ])
-        .send()
+        .call()
         .unwrap();
 
-    println!("Response: {:?}", resp.text().unwrap());
+    println!("Response: {:?}", resp.into_string().unwrap());
 }
 
-fn logout(client: &req::Client, env: &UsernamePassword, ac_id: u32, client_ip: &str) {
+fn logout(client: &Agent, env: &UsernamePassword, ac_id: u32, client_ip: &str) {
     /*
        curl -k -b $COOKIEFILE \
            --noproxy '*' \
@@ -348,37 +358,37 @@ fn logout(client: &req::Client, env: &UsernamePassword, ac_id: u32, client_ip: &
 
     let resp = client
         .post("https://gw.buaa.edu.cn/cgi-bin/srun_portal")
-        .header("Host", "gw.buaa.edu.cn")
-        .header(
+        .set("Host", "gw.buaa.edu.cn")
+        .set(
             "Accept",
             "text/javascript, application/javascript, application/ecmascript, \
              application/x-ecmascript, */*; q=0.01",
         )
-        .header("DNT", "1")
-        .header("X-Requested-With", "XMLHttpRequest")
-        .header("Sec-Fetch-Mode", "cors")
-        .header("Sec-Fetch-Site", "same-origin")
-        .header(
+        .set("DNT", "1")
+        .set("X-Requested-With", "XMLHttpRequest")
+        .set("Sec-Fetch-Mode", "cors")
+        .set("Sec-Fetch-Site", "same-origin")
+        .set(
             "Referer",
             &format!(
                 "https://gw.buaa.edu.cn/srun_portal_pc?ac_id={}&theme=buaa&url=www.buaa.edu.cn",
                 ac_id
             ),
         )
-        .header(
+        .set(
             "Accept-Language",
             "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7,zh-TW;q=0.6",
         )
-        .query(&[
+        .query_pairs([
             ("callback", "jQuery112407419864172676014_1566720734115"),
             ("action", "logout"),
             ("username", env.username.as_str()),
             ("ac_id", &ac_id.to_string()),
             ("ip", client_ip),
         ])
-        .send()
+        .call()
         .unwrap()
-        .text()
+        .into_string()
         .unwrap();
     println!("Response: {:?}", resp);
 }
