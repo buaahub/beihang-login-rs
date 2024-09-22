@@ -5,7 +5,7 @@ use bytes::Buf;
 use cookie_store::{Cookie, CookieStore};
 use digest::Digest;
 use hmac::Mac;
-use ureq::{Agent, RequestUrl};
+use ureq::Agent;
 use url::Url;
 
 static UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
@@ -116,7 +116,7 @@ fn main() {
     -H 'Cookie: pgv_pvi=2381688832; AD_VALUE=8751256e; cookie=0; lang=zh-CN; user=$USERNAME' \
     'https://gw.buaa.edu.cn/index_1.html?ad_check=1'`
      */
-    let _result = client
+    let result = client
         .get("https://gw.buaa.edu.cn/index_1.html?ad_check=1")
         .set("Host", "gw.buaa.edu.cn")
         .set("Upgrade-Insecure-Requests", "1")
@@ -142,7 +142,13 @@ fn main() {
     AC_ID=${RESULT#*ac_id=}
     AC_ID=1
     echo "AC_ID: "$AC_ID */
-    let ac_id = 1;
+    let ac_id: u32 = result
+        .get_url()
+        .split("ac_id=")
+        .nth(1)
+        .and_then(|s| s.split('&').next())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(62);
 
     /*# Get challenge number
     RESULT=`curl -k -s -b $COOKIEFILE \
@@ -433,8 +439,8 @@ fn x_encode(str: &[u8], challenge: &[u8]) -> Vec<u32> {
 
     let n = v.len() - 1;
     let mut z = v[n];
-    let mut y = v[0];
-    let mut c = 0x86014019 | 0x183639A0;
+    let mut y;
+    let c = 0x86014019 | 0x183639A0;
     let mut m;
     let mut e;
     let mut p: u32;
