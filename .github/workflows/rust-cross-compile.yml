@@ -14,31 +14,47 @@ jobs:
           - os_name: Linux-x86_64-musl
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
+            toolchain: stable
+            args: "--release"
 
           - os_name: Linux-ARM64-musl
             os: ubuntu-latest
+            host: x86_64-unknown-linux-gnu
             target: aarch64-unknown-linux-musl
+            toolchain: stable
+            args: "--release"
 
           - os_name: Linux-Armv7-musl
             os: ubuntu-latest
+            host: x86_64-unknown-linux-gnu
             target: armv7-unknown-linux-musleabihf
+            toolchain: nightly
+            args: "--release"
 
           - os_name: Linux-MIPS-musl
             os: ubuntu-latest
+            host: x86_64-unknown-linux-gnu
             target: mipsel-unknown-linux-musl
             toolchain: nightly
+            args: "--release"
 
           - os_name: Windows-x86_64-msvc
             os: windows-latest
             target: x86_64-pc-windows-msvc
+            toolchain: stable
+            args: "--release"
 
           - os_name: macOS-x86_64
             os: macOS-latest
             target: x86_64-apple-darwin
+            toolchain: stable
+            args: "--release"
 
           - os_name: macOS-apple
             os: macOS-latest
             target: aarch64-apple-darwin
+            toolchain: stable
+            args: "--release"
 
 #          - os_name: Windows-i686-mscv
 #            os: windows-latest
@@ -49,17 +65,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
       - name: Build binary
-        uses: houseabsolute/actions-rust-cross@v0
+        uses: bearbattle/actions-rust-cross@v0
         with:
           command: ${{ matrix.platform.command }}
+          host: ${{ matrix.platform.host }}
           target: ${{ matrix.platform.target }}
           toolchain: ${{ matrix.platform.toolchain }}
-          args: "--release"
+          args: ${{ matrix.platform.args }}
           strip: true
+
       - name: Publish artifacts and release
         uses: houseabsolute/actions-rust-release@v0
         with:
-          executable-name: buaa-login
+          executable-name: beihang-login
           target: ${{ matrix.platform.target }}
-        if: matrix.toolchain == 'stable'

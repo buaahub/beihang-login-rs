@@ -1,0 +1,12 @@
+[target.mipsel-unknown-linux-musl]
+# Use xargo when cross-compiling for targets without a pre-built
+# standard library. Prefer `build-std` for most targets. This
+# requires nightly.
+#xargo = true
+# Use `-Zbuild-std` when cross-compiling for targets without a
+# pre-built standard library. This overrides `xargo`: if enabled,
+# `xargo` will not be used.
+build-std = true
+pre-build = [
+    "apt-get update && apt-get install -y libssl-dev"
+]

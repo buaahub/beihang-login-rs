@@ -2,26 +2,43 @@ name: Manual Compile given target.
 on:
   workflow_dispatch:
     inputs:
-      name:
-        description: 'Target to build'
+      command:
+        description: |
+          The commands to run (one of "build", "test", or "both").
+        default: build
+      host:
+        description: The host platform
+        required: false
+      target:
+        description: The target platform
         required: true
       toolchain:
         description: |
           The target toolchain to use (one of "stable", "beta", or "nightly").
         default: stable
-
+      args:
+        description: |
+          The arguments to be passed to cross or cargo when building, as a
+          space-separated string.
+        default: ""
+      strip:
+        description: Strip the compiled binary
+        default: false
 
 jobs:
   build:
-    name: Build - ${{ matrix.platform.release_for }}
+    name: Build - ${{ github.event.inputs.name }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
       - name: Build binary
-        uses: houseabsolute/actions-rust-cross@v0
+        uses: bearbattle/actions-rust-cross@v0
         with:
-          target: ${{ github.event.inputs.name }}
+          command: ${{ github.event.inputs.command }}
+          host: ${{ github.event.inputs.host }}
+          target: ${{ github.event.inputs.target }}
           toolchain: ${{ github.event.inputs.toolchain }}
-          args: "--release"
-          strip: true
+          args: ${{ github.event.inputs.args }}
+          strip: ${{ github.event.inputs.strip }}

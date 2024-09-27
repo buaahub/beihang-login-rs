@@ -19,7 +19,6 @@ getopts = "0.2.21"
 hex = "0.4.3"
 hmac = "0.12.1"
 md-5 = "0.10.6"
-native-tls = { optional = true, version = "*" }
 serde = { version = "1.0.193", features = ["derive"] }
 serde_json = "1.0.108"
 sha1 = "0.10.6"
@@ -27,11 +26,9 @@ ureq = { version = "2.8.0", default-features = false, features = [
     "json",
     "charset",
     "cookies",
-    "native-tls",
 ] }
 url = "2.5.0"
 
 [features]
-default = ["native-tls"]
-native-tls = ["dep:native-tls", "ureq/native-tls"]
+default = ["rustls"]
 rustls = ["ureq/tls"]
