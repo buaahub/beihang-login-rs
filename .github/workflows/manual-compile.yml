@@ -5,6 +5,10 @@ on:
       name:
         description: 'Target to build'
         required: true
+      toolchain:
+        description: |
+          The target toolchain to use (one of "stable", "beta", or "nightly").
+        default: stable
 
 
 jobs:
@@ -12,9 +16,12 @@ jobs:
     name: Build - ${{ matrix.platform.release_for }}
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v3
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v0
         with:
           target: ${{ github.event.inputs.name }}
+          toolchain: ${{ github.event.inputs.toolchain }}
           args: "--release"
           strip: true

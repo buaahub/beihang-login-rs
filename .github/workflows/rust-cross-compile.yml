@@ -7,7 +7,7 @@ on:
 
 jobs:
   release:
-    name: Release - ${{ matrix.platform.release_for }}
+    name: Release - ${{ matrix.platform.os_name }}
     strategy:
       matrix:
         platform:
@@ -26,6 +26,7 @@ jobs:
           - os_name: Linux-MIPS-musl
             os: ubuntu-latest
             target: mipsel-unknown-linux-musl
+            toolchain: nightly
 
           - os_name: Windows-x86_64-msvc
             os: windows-latest
@@ -53,6 +54,7 @@ jobs:
         with:
           command: ${{ matrix.platform.command }}
           target: ${{ matrix.platform.target }}
+          toolchain: ${{ matrix.platform.toolchain }}
           args: "--release"
           strip: true
       - name: Publish artifacts and release
