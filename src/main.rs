@@ -148,7 +148,7 @@ fn main() {
         .nth(1)
         .and_then(|s| s.split('&').next())
         .and_then(|s| s.parse().ok())
-        .unwrap_or(62);
+        .unwrap_or(67);
 
     /*# Get challenge number
     RESULT=`curl -k -s -b $COOKIEFILE \
