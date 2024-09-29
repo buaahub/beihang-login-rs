@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use base64::Engine;
 use bytes::Buf;
 use cookie_store::{Cookie, CookieStore};
@@ -39,7 +37,8 @@ fn main() {
                 "Usage: beihang-login [options]\n\
                 \n\
                 You should write your username and password as {\"username\": ..., \"password\": ...}\n\
-                in a JSON file named `.env.json` in the working directory, or supply it with `-f`."
+                in a JSON file named `account.json` in the working directory, or supply it with `-f`.\n\
+                A account.json.example is distributed with this file."
             )
         );
         return;
@@ -59,12 +58,9 @@ fn main() {
             )
         }
     };
-    let env: UsernamePassword = match serde_json::from_reader(env_file) {
-        Ok(e) => e,
-        Err(err) => {
-            panic!("Unable to parse the env file: {}", err)
-        }
-    };
+    let env: UsernamePassword = serde_json::from_reader(env_file).unwrap_or_else(|err| {
+        panic!("Unable to parse the env file: {}", err)
+    });
 
     /*
     pgv_pvi=2381688832; AD_VALUE=8751256e; cookie=0; lang=zh-CN; user=$USERNAME */
