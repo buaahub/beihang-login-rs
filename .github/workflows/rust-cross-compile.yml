@@ -81,3 +81,5 @@ jobs:
         with:
           executable-name: beihang-login
           target: ${{ matrix.platform.target }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
